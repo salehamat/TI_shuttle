@@ -19,9 +19,11 @@ import android.os.Message;
 import android.provider.Settings;
 import android.support.annotation.RequiresApi;
 import android.support.v4.app.ActivityCompat;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
+import android.text.InputType;
 import android.view.View;
-import android.widget.TextView;
+import android.widget.EditText;
 import android.widget.Toast;
 
 import java.lang.ref.WeakReference;
@@ -29,84 +31,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 import java.util.Set;
-class Mapping {
-    private Passenger passenger;
-    private String cardId;
-
-    public Passenger getPassenger() {
-        return passenger;
-    }
-
-    public void setPassenger(Passenger passenger) {
-        this.passenger = passenger;
-    }
-
-    public String getCardId() {
-        return cardId;
-    }
-
-    public void setCardId(String cardId) {
-        this.cardId = cardId;
-    }
-}
-
-
-class Passenger {
-    private String AID;
-    private String locationIn;
-    private String timeIn;
-    private String locationOut;
-    private String timeOut;
-    private String Date;
-
-    public String getAID() {
-        return AID;
-    }
-
-    public void setAID(String AID) {
-        this.AID = AID;
-    }
-
-    public String getLocationIn() {
-        return locationIn;
-    }
-
-    public void setLocationIn(String locationIn) {
-        this.locationIn = locationIn;
-    }
-
-    public String getTimeIn() {
-        return timeIn;
-    }
-
-    public void setTimeIn(String timeIn) {
-        this.timeIn = timeIn;
-    }
-
-    public String getLocationOut() {
-        return locationOut;
-    }
-
-    public void setLocationOut(String locationOut) {
-        this.locationOut = locationOut;
-    }
-
-    public String getTimeOut() {
-        return timeOut;
-    }
-
-    public void setTimeOut(String timeOut) {
-        this.timeOut = timeOut;
-    }
-
-    public String getDate() {
-        return Date;
-    }
-
-    public void setDate(String date) {
-        Date = date;
-    }
-}
 
 @RequiresApi(api = Build.VERSION_CODES.O)
 public class MainActivity extends AppCompatActivity {
@@ -137,11 +61,12 @@ public class MainActivity extends AppCompatActivity {
         }
     };
     private UsbService usbService;
-    private TextView display;
     private LocationManager locationManager;
     private LocationListener listener;
-    private String data;
-    DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
+    DateTimeFormatter dt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    DateTimeFormatter tm = DateTimeFormatter.ofPattern("HH:mm:ss");
+    private String AID;
+    private DBHelper dbHelper;
 
     private MyHandler mHandler;
     private final ServiceConnection usbConnection = new ServiceConnection() {
@@ -157,55 +82,57 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
-    private String getLocation(Location location){
+    private String getLocation(Location location) {
         double lat = location.getLatitude();
         double lng = location.getLongitude();
-        if (lat > 12.977866 && lat < 12.979581 && lng > 77.659198 && lng < 77.659949){
+        if (lat > 12.977866 && lat < 12.979581 && lng > 77.659198 && lng < 77.659949) {
             return "TI main Building";
-        }
-        else if (lat > 12.977919 && lat < 12.979497 && lng > 77.660292 && lng < 77.661075){
+        } else if (lat > 12.977919 && lat < 12.979497 && lng > 77.660292 && lng < 77.661075) {
             return "Lake view Building";
-        }
-        else if (lat > 12.984671 && lat < 12.987117 && lng > 77.643493 && lng < 77.646948){
+        } else if (lat > 12.984671 && lat < 12.987117 && lng > 77.643493 && lng < 77.646948) {
             return "SVM";
-        }
-        else if (lat > 12.996535 && lat < 13.0265826 && lng > 77.668979 && lng < 77.681981){
+        } else if (lat > 12.996535 && lat < 13.0265826 && lng > 77.668979 && lng < 77.681981) {
             return "Tin Factory";
-        }
-        else{
+        } else {
             return "Not Identified";
         }
     }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
         mHandler = new MyHandler(this);
-
-        display = findViewById(R.id.textView1);
         // ToDo: sleep thread
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         listener = new LocationListener() {
             @Override
             public void onLocationChanged(Location loc) {
-                String location = getLocation(loc);
-                //display.append(data + ": " + location.getLongitude() + " " + location.getLatitude() + ": " + dtf.format(LocalDateTime.now()));
+                if (AID != null) {
+                    String location = getLocation(loc);
+                    dbHelper = new DBHelper(MainActivity.this);
+                    if (dbHelper.insertData(AID, location, dt.format(LocalDateTime.now()), tm.format(LocalDateTime.now())))
+                        Toast.makeText(MainActivity.this, "ID card scanned!", Toast.LENGTH_LONG).show();
+                    else
+                        Toast.makeText(MainActivity.this, "Error in updating DB", Toast.LENGTH_LONG).show();
+                    AID = null;
+                } else {
+                    Toast.makeText(MainActivity.this, "card not scanned", Toast.LENGTH_LONG).show();
+                }
+                //display.append(AID + ": " + location.getLongitude() + " " + location.getLatitude() + ": " + dtf.format(LocalDateTime.now()));
             }
 
             @Override
             public void onStatusChanged(String s, int i, Bundle bundle) {
-
             }
 
             @Override
             public void onProviderEnabled(String s) {
-
             }
 
             @Override
             public void onProviderDisabled(String s) {
-
                 Intent i = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
                 startActivity(i);
             }
@@ -279,10 +206,21 @@ public class MainActivity extends AppCompatActivity {
         public void handleMessage(Message msg) {
             switch (msg.what) {
                 case UsbService.MESSAGE_FROM_SERIAL_PORT:
-                    data = (String) msg.obj;
-                    //mActivity.get().display.append(data + "\n");
-                    // ToDo: New code to be put here
-
+                    String CID = (String) msg.obj;
+                    AID = dbHelper.checkAID(CID);
+                    if (AID == null) {
+                        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                        builder.setTitle("Register new AID/XID:");
+                        // Set up the input
+                        final EditText input = new EditText(MainActivity.this);
+                        // Specify the type of input expected; this, for example, sets the input as a password, and will mask the text
+                        input.setInputType(InputType.TYPE_CLASS_TEXT);
+                        builder.setView(input);
+                        // Set up the buttons
+                        builder.setPositiveButton("OK", (dialog, which) -> AID = dbHelper.insertAID(CID, input.getText().toString()));
+                        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+                        builder.show();
+                    }
                     if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED || ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                         requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.INTERNET}, 10);
                     }
