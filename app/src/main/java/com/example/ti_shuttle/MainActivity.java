@@ -67,7 +67,7 @@ public class MainActivity extends AppCompatActivity {
     DateTimeFormatter tm = DateTimeFormatter.ofPattern("HH:mm:ss");
     private String AID;
     private DBHelper dbHelper;
-
+    private EditText text;
     private MyHandler mHandler;
     private final ServiceConnection usbConnection = new ServiceConnection() {
         @Override
@@ -82,6 +82,12 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    public void onDisplay(View view){
+        // Start NewActivity.class
+        Intent myIntent = new Intent(MainActivity.this,
+                DisplayActivity.class);
+        startActivity(myIntent);
+    }
     private String getLocation(Location location) {
         double lat = location.getLatitude();
         double lng = location.getLongitude();
@@ -102,8 +108,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
         mHandler = new MyHandler(this);
+        dbHelper = new DBHelper(this);
         // ToDo: sleep thread
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         listener = new LocationListener() {
@@ -113,7 +119,7 @@ public class MainActivity extends AppCompatActivity {
                     String location = getLocation(loc);
                     dbHelper = new DBHelper(MainActivity.this);
                     if (dbHelper.insertData(AID, location, dt.format(LocalDateTime.now()), tm.format(LocalDateTime.now())))
-                        Toast.makeText(MainActivity.this, "ID card scanned!", Toast.LENGTH_LONG).show();
+                        Toast.makeText(MainActivity.this, "ID card scanned!: \nAid: " + AID + "\nLocation: " + location + "\ntime: " + tm.format(LocalDateTime.now()), Toast.LENGTH_LONG).show();
                     else
                         Toast.makeText(MainActivity.this, "Error in updating DB", Toast.LENGTH_LONG).show();
                     AID = null;
@@ -157,6 +163,29 @@ public class MainActivity extends AppCompatActivity {
         unregisterReceiver(mUsbReceiver);
         unbindService(usbConnection);
     }
+
+    /*public void onDataEntered(View view){
+        String CID = text.getText().toString();
+        AID = dbHelper.checkAID(CID);
+        if (AID == null) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+            builder.setTitle("Register new AID/XID:");
+            // Set up the input
+            final EditText input = new EditText(MainActivity.this);
+            // Specify the type of input expected; this, for example, sets the input as a password, and will mask the text
+            input.setInputType(InputType.TYPE_CLASS_TEXT);
+            builder.setView(input);
+            // Set up the buttons
+            builder.setPositiveButton("OK", (dialog, which) -> AID = dbHelper.insertAID(CID, input.getText().toString()));
+            builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+            builder.show();
+        }
+        if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED || ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.INTERNET}, 10);
+        }
+        locationManager.requestLocationUpdates("gps", 5000, 100, listener);
+
+    }*/
 
     private void startService(Class<?> service, ServiceConnection serviceConnection, Bundle extras) {
         if (!UsbService.SERVICE_CONNECTED) {
